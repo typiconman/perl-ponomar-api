@@ -4,7 +4,7 @@ use ExtUtils::MakeMaker;
 use File::ShareDir::Install;
 
 delete_share '.';
-install_share dist => '../../languages';
+install_share dist => 'data';
 
 my @scripts = grep {-f && !m/\./o && !m/~$/o } glob("scripts/*");
 

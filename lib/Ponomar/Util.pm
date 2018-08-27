@@ -19,6 +19,7 @@ use File::ShareDir 'dist_dir';
 require Exporter;
 require Ponomar::JDate;
 use vars qw (@ISA @EXPORT_OK %EXPORT_TAGS @EXPORT $VERSION $basepath);
+use constant DATAPATH => '/home/ponomar0/git/ponomar/Ponomar/languages/'; # THIS IS THE ALTERNATIVE DATA PATH IF YOU'RE NOT USING FILE::SHAREDIR
 
 ## $basepath IS THE PATH TO THE ROOT OF THE XML DATA. YOU WILL NEED TO SET THIS VARIABLE
 BEGIN {
@@ -26,7 +27,10 @@ BEGIN {
 	@ISA 	 = qw( Exporter );
 	@EXPORT  = qw( getPascha getGregorianOffset findBottomUp findTopDown getToday max argmax isNumeric getMatinsGospel julianFromGregorian getNextYearWithBoundary getKeyOfBoundaries);
 	@EXPORT_OK = qw(getIndiction getSolarCycle getConcurrent getLunarCycle getFoundation getEpacta getNextFullMoon getVernalEquinox getJulianDayFromMilankovich getMilankovichPascha);
-	$basepath = dist_dir('Ponomar') . '/';
+    eval {
+	    $basepath = dist_dir('Ponomar') . '/';
+    };
+    $basepath = DATAPATH if ($@);
 }
 
 my %matinsGospels = (
