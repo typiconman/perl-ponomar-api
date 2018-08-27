@@ -1,0 +1,3 @@
+[submodule "ponomar"]
+	path = ponomar
+	url = git@github.com:typiconman/ponomar.git
