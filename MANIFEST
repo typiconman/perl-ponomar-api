@@ -15,5 +15,5 @@ lib/Ponomar/JDate.pm
 lib/Ponomar/Reading.pm
 lib/Ponomar/Service.pm
 lib/Ponomar/Util.pm
-README
+README.md
 t/Ponomar.t
