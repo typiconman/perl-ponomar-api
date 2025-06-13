@@ -759,7 +759,8 @@ sub getMilankovichYear {
 	$R1 %= 1461;
 	my $PriorYears = floor ($R1 / 365);
 	my $year = 100 * $PriorCenturies + 4 * $PriorSubCycles + $PriorYears;
-	return $R1 % 365 == 0 ? $year : $year + 1;
+	return ($R1 == 1460) ? $year : $year + 1;
+#	return ($R1 % 365) == 0 ? $year : $year + 1;
 }
 
 =item getMilankovichMonth()
@@ -770,20 +771,43 @@ Returns the month of the JDate object according to the (proleptic) Milankovich c
 
 sub getMilankovichMonth {
 	my $self = shift;
-	# TODO: fix this computation so that there is no duplication of code with the above method
-	my $Days = floor ($self->{_mnjday} - 1721425.5);
-	my $PriorCenturies = floor($Days / 36524);
-	my $R1 = $Days - 36524 * $PriorCenturies - floor((2 * $PriorCenturies + 6) / 9);
-	my $PriorSubCycles = floor($R1 / 1461);
-	$R1 %= 1461;
-	my $PriorYears = floor ($R1 / 365);
-	my $year = 100 * $PriorCenturies + 4 * $PriorSubCycles + $PriorYears;
-	$year++ unless ($R1 % 365 == 0);
-	$R1 = $R1 % 365 == 0 ?
-		$R1 = mIsMilankovichLeap($year) && $PriorSubCycles == 0 ? 366 : 365 :
-		$R1 % 365;
-	my $correction = $R1 - 1 < (31 + 28 + mIsMilankovichLeap($year)) ? 0 : 2 - mIsMilankovichLeap($year);
-	return floor((12 * ($R1 - 1 + $correction) + 373) / 367);
+	my $year = $self->getMilankovichYear();
+	# get the Julian Day of the beginning of this year
+	my $f = 1721425.5 + 365 * ($year - 1) + floor(($year - 1) / 4);
+	# correction for prior century leap years
+	$f += -1 * floor(($year - 1) / 100) + floor( (2 * floor(($year - 1) / 100) + 6) / 9);
+	# the number of days since the beginning of the year
+	my $diff = floor($self->{_mnjday} - $f + 1);
+	return 1 if ($diff <= 31);
+	return 2 if ($diff <= 59 + mIsMilankovichLeap($year));
+	return 3 if ($diff <= 90 + mIsMilankovichLeap($year));
+	return 4 if ($diff <= 120 + mIsMilankovichLeap($year));
+	return 5 if ($diff <= 151 + mIsMilankovichLeap($year));
+	return 6 if ($diff <= 181 + mIsMilankovichLeap($year));
+	return 7 if ($diff <= 212 + mIsMilankovichLeap($year));
+	return 8 if ($diff <= 243 + mIsMilankovichLeap($year));
+	return 9 if ($diff <= 273 + mIsMilankovichLeap($year));
+	return 10 if ($diff <= 304 + mIsMilankovichLeap($year));
+	return 11 if ($diff <= 334 + mIsMilankovichLeap($year));
+	return 12;
+#	my $Days = floor ($self->{_mnjday} - 1721425.5);
+#	my $PriorCenturies = floor($Days / 36524);
+#	my $R1 = $Days - 36524 * $PriorCenturies - floor((2 * $PriorCenturies + 6) / 9);
+#	my $PriorSubCycles = floor($R1 / 1461);
+#	$R1 %= 1461;
+#	my $PriorYears = floor ($R1 / 365);
+#	my $year = 100 * $PriorCenturies + 4 * $PriorSubCycles + $PriorYears;
+#	$year++ unless ($R1 % 365 == 0);
+#	return 12 if ($R1 == 1460);
+#	return 1 if ($R1 == 0);
+#print $R1;
+#	$R1 = $R1 % 365 == 0 ?
+#		$R1 = mIsMilankovichLeap($year) && $PriorSubCycles == 0 ? 366 : 365 :
+#		$R1 % 365;
+#print $R1;
+#	my $correction = $R1 < (31 + 28 + mIsMilankovichLeap($year)) ? 0 : 2 - mIsMilankovichLeap($year);
+#print $correction;
+#	return floor((12 * ($R1 + $correction) + 373) / 367);
 }
 
 =item getMilankovichDay()
@@ -799,8 +823,8 @@ sub getMilankovichDay {
 	my $year = $self->getMilankovichYear();
 	my $month = $self->getMilankovichMonth();
 
-	# cheat: get the Julian Day for the first day of this month
-	my $f = 1721425.5 + 365 * ($year - 1) + floor(($year - 1) / 4) + floor((367 * $month - 362) / 12) + 1;
+	# get the Julian Day for the first day of this month
+	my $f = 1721425.5 + 365 * ($year - 1) + floor(($year - 1) / 4) + floor((367 * $month - 362) / 12);
 	if ($month > 2) {
 		if (mIsMilankovichLeap($year)) {
 			$f--;
@@ -808,7 +832,6 @@ sub getMilankovichDay {
 			$f -= 2;
 		}
 	}
-
 	# correction for prior century leap years
 	$f += -1 * floor(($year - 1) / 100) + floor( (2 * floor(($year - 1) / 100) + 6) / 9);
 	return floor($self->{_mnjday} - $f + 1);

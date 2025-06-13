@@ -26,7 +26,7 @@ BEGIN {
 	$VERSION = 0.01;
 	@ISA 	 = qw( Exporter );
 	@EXPORT  = qw( getPascha getGregorianOffset findBottomUp findTopDown getToday max argmax isNumeric getMatinsGospel julianFromGregorian getNextYearWithBoundary getKeyOfBoundaries);
-	@EXPORT_OK = qw(getIndiction getSolarCycle getConcurrent getLunarCycle getFoundation getEpacta getNextFullMoon getVernalEquinox getJulianDayFromMilankovich getMilankovichPascha);
+	@EXPORT_OK = qw(getIndiction getSolarCycle getConcurrent getLunarCycle getFoundation getEpacta getNextFullMoon getVernalEquinox getJulianDayFromMilankovich getMilankovichPascha getDeltaT getGregorianEaster);
     eval {
 	    $basepath = dist_dir('Ponomar') . '/';
     };
@@ -497,8 +497,9 @@ sub getFoundation {
 
 =item getEpacta( $year )
 
-Given C<$year>, a year AD, returns the Epacta. Note that this is not the Roman Epacta (the age of the moon on January 1). 
-Rather, this is the number that needs to be added to make the Foundation C<21> (or C<51>).
+Given C<$year>, a year AD, returns the Epacta. 
+Note that, despite its name, this is not an actual Epacta.
+Rather, it is the date of the Paschal full moon according to the Coptic calendar.
 
 =cut
 
@@ -507,6 +508,53 @@ sub getEpacta {
 	
 	my $foundation = getFoundation($year);
 	return (51 - $foundation) % 30;
+}
+
+=item getCopticMonth( $epacta )
+
+Given C<$epacta>, the result of the C<getEpacta> sub, return a string with the month of the Paschal full moon according to the Coptic calendar.
+The computation is quite simple: if C<$epacta> is less than or equal to 23, the month is Ⲫⲁⲣⲙⲟⲩⲑⲓ;
+if C<$epacta> is greater than or equal to 25, the month is Ⲡⲁⲣⲉⲙϩⲁⲧ.
+Note that we do not do any error checking of validity of the epacta, expcept to ensure that it is in the range of 1 to 29.
+
+=cut
+
+sub getCopticMonth {
+	my $epacta = shift;
+
+	if ($epacta < 1) {
+		croak(__PACKAGE__  . "::getCopticMonth($epacta) : epacta must be between 1 and 29");
+	} elsif ($epacta <= 23) {
+		return "Ⲫⲁⲣⲙⲟⲩⲑⲓ";
+	} elsif ($epacta <= 29) {
+		return "Ⲡⲁⲣⲉⲙϩⲁⲧ";
+	} else {
+		croak(__PACKAGE__  . "::getCopticMonth($epacta) : epacta must be between 1 and 29");
+	}
+}
+
+=item getJulianEpacta( $year )
+
+Given C<$year>, a year AD, returns a JDate object containing the date corresponding to the epacta. See C<getEpacta>, above, for information.
+
+=cut
+
+sub getJulianEpacta {
+	my $year = shift;
+
+	my $epacta = getEpacta($year);
+	if ($epacta <= 5) {
+		# this is the first five days of Ⲫⲁⲣⲙⲟⲩⲑⲓ, which correspond to the end of March
+		return new Ponomar::JDate(3, $epacta + 26, $year);
+	} elsif ($epacta < 24) {
+		# this is an epacta in Ⲫⲁⲣⲙⲟⲩⲑⲓ, corresponding to April
+		return new Ponomar::JDate(4, $epacta - 5, $year);
+	} elsif ($epacta < 30) {
+		# this is an epacta in Ⲡⲁⲣⲉⲙϩⲁⲧ, correspoding to March
+		return new Ponomar::JDate(3, $epacta - 4, $year);
+	} else {
+		croak (__PACKAGE__ . "::getJulianEpacta($year) : something is not sane, since the resulting epacta $epacta is outside of valid bounds");
+	}
 }
 
 =item getKeyOfBoundaries( $year )
@@ -755,9 +803,15 @@ sub getNextFullMoon {
 
 =item getVernalEquinox ( $year ) 
 
-Given C<$year>, a year between AD 1000 and AD 3000, returns the date of the March equinox
+Given C<$year>, a year between AD 1000 and AD 3000, returns a JDate
+object of the March equinox.
 
-Formulae due to Meuss, Astronomical Algorithms, pp. 177-182.
+Usage example:
+	
+	my $equi = getVernalEquinox($year);
+    my ($day, $hour, $minute) = (int($equi->getDayGregorian()), $equi->getHour(), $equi->getMinute());
+    
+Formulae are due to Meuss, Astronomical Algorithms, pp. 177-182.
 
 =cut
 
@@ -837,7 +891,7 @@ sub getJulianDayFromMilankovich {
 	my @NUM_DAYS = isMilankovichLeap($year) ? (0, 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31) : (0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31);
 	carp (__PACKAGE__ . "::getJulianDayFromMilankovich($month, $day, $year) : invalid date specified") unless ($day > 0 && $day <= $NUM_DAYS[$month]);
 
-	my $f = 1721425.5 + 365 * ($year - 1) + floor(($year - 1) / 4) + floor((367 * $month - 362) / 12) + $day;
+	my $f = 1721425.5 + 365 * ($year - 1) + floor(($year - 1) / 4) + floor((367 * $month - 362) / 12) + $day - 1;
 	if ($month > 2) {
 		if (isMilankovichLeap($year)) {
 			$f--;
@@ -961,7 +1015,7 @@ sub getMilankovichPascha {
 		$start = $start->addDays(1);
 		$moon = getNextFullMoon($start);
 	}
-	my $apparentMoon = new Ponomar::JDate($moon->getJulianDay() - getDeltaT($moon) / (60 * 60 * 24) + 2.0 / 24); # this is the time when the full moon occured at Jerusalem
+	my $apparentMoon = new Ponomar::JDate($moon->getJulianDay() - getDeltaT($moon) / (60 * 60 * 24) + (35.2298 * 4 / 60) / 24); # this is the time when the full moon occured at Jerusalem
 	return $apparentMoon->addDays(7 - $apparentMoon->getDayOfWeek());
 }
 
